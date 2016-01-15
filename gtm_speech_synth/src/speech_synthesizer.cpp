@@ -4,14 +4,16 @@
 #include <iostream>
 #include "espeak/speak_lib.h"
 
-// test using: rostopic pub -1 /text_to_speech std_msgs/String Hello
+// test using: rostopic pub -1 /text_to_speech std_msgs/String "Witaj świecie"
+// example espeak library usage: http://bazaar.launchpad.net/~rainct/python-espeak/trunk/view/head:/espeak/espeakmodulecore.cpp
 
 class EspeakSynth
 {
 public:
   EspeakSynth()
   {
-    logIfError(espeak_Initialize(AUDIO_OUTPUT_SYNCH_PLAYBACK, 0,0,0));
+    espeak_Initialize(AUDIO_OUTPUT_PLAYBACK, 1000,NULL,0);
+    espeak_SetVoiceByName("pl");
   }
   ~EspeakSynth()
   {
@@ -20,12 +22,15 @@ public:
   
   void synthesize(const char* msg)
   {
+    int len = strlen(msg);
+    logIfError(espeak_Synth(msg, len+ 1, 0, POS_CHARACTER, 0, espeakCHARS_AUTO, NULL, NULL));
   }
 
 
 private:
   // disable copying
   EspeakSynth(const EspeakSynth & );
+  
   void logIfError(int errorCode) 
   {
     if (errorCode) {
