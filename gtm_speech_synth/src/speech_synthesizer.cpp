@@ -34,7 +34,7 @@ private:
   void logIfError(int errorCode) 
   {
     if (errorCode) {
-      std::cout << "ERROR CODE " << errorCode << std::endl;
+      ROS_ERROR("Failed synthesizing, error code: %i", errorCode);
     }
   }
 };
@@ -54,7 +54,6 @@ public:
   void textReceived(const std_msgs::String::ConstPtr &msg)
   {
     ROS_INFO("Received text_to_speech: [%s]", msg->data.c_str());
-    std::cout << "RECEIVED " << msg->data.c_str() << std::endl;
     synth.synthesize(msg->data.c_str());
   }
 private:
@@ -66,7 +65,6 @@ private:
 
 int main(int argc, char **argv)
 {
-  std::cout << "STARTED" << std::endl;
   ros::init(argc, argv, "speech_synthesizer");
 
   Synthesizer s;

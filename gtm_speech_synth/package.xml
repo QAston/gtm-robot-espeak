@@ -14,9 +14,10 @@
   <run_depend>roscpp</run_depend>
   <run_depend>std_msgs</run_depend>
   <run_depend>message_runtime</run_depend>
+  <!-- taken from: https://github.com/ros/rosdistro/blob/master/rosdep/base.yaml -->
   <build_depend>libespeak-dev</build_depend>
-  <build_depend>libespeak1</build_depend>
-  <run_depend>libespeak1</run_depend>
+  <run_depend>libespeak-dev</run_depend>
+  <run_depend>espeak</run_depend>
 
   <export>
   </export>
