@@ -5,63 +5,62 @@
 #include "espeak/speak_lib.h"
 
 // test using: rostopic pub -1 /text_to_speech std_msgs/String "Witaj świecie"
-// example espeak library usage: http://bazaar.launchpad.net/~rainct/python-espeak/trunk/view/head:/espeak/espeakmodulecore.cpp
+// example espeak library usage:
+// http://bazaar.launchpad.net/~rainct/python-espeak/trunk/view/head:/espeak/espeakmodulecore.cpp
 
 class EspeakSynth
 {
 public:
   EspeakSynth()
   {
-    espeak_Initialize(AUDIO_OUTPUT_PLAYBACK, 1000,NULL,0);
+    espeak_Initialize(AUDIO_OUTPUT_PLAYBACK, 1000, NULL, 0);
     espeak_SetVoiceByName("pl");
   }
   ~EspeakSynth()
   {
     espeak_Terminate();
   }
-  
-  void synthesize(const char* msg)
+
+  void synthesize(const char *msg)
   {
     int len = strlen(msg);
-    logIfError(espeak_Synth(msg, len+ 1, 0, POS_CHARACTER, 0, espeakCHARS_AUTO, NULL, NULL));
+    logIfError(espeak_Synth(msg, len + 1, 0, POS_CHARACTER, 0, espeakCHARS_AUTO, NULL, NULL));
   }
-
 
 private:
   // disable copying
-  EspeakSynth(const EspeakSynth & );
-  
-  void logIfError(int errorCode) 
+  EspeakSynth(const EspeakSynth &);
+
+  void logIfError(int errorCode)
   {
-    if (errorCode) {
+    if (errorCode)
+    {
       ROS_ERROR("Failed synthesizing, error code: %i", errorCode);
     }
   }
 };
 
-class Synthesizer {
+class Synthesizer
+{
   ros::NodeHandle n;
   ros::Subscriber sub;
   EspeakSynth synth;
+
 public:
-  Synthesizer() : 
-    n(),
-    sub(n.subscribe("text_to_speech", 300, &Synthesizer::textReceived, this)),
-    synth()
+  Synthesizer() : n(), sub(n.subscribe("text_to_speech", 300, &Synthesizer::textReceived, this)), synth()
   {
   }
-  
+
   void textReceived(const std_msgs::String::ConstPtr &msg)
   {
     ROS_INFO("Received text_to_speech: [%s]", msg->data.c_str());
     synth.synthesize(msg->data.c_str());
   }
+
 private:
   // disable copying
-  Synthesizer(const Synthesizer & );
+  Synthesizer(const Synthesizer &);
 };
-
-
 
 int main(int argc, char **argv)
 {
