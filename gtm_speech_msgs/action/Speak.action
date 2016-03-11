@@ -1,0 +1,5 @@
+string text
+---
+bool finished
+---
+int32 processed_characters

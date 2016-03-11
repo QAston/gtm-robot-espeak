@@ -18,7 +18,8 @@
   <build_depend>libespeak-dev</build_depend>
   <run_depend>libespeak-dev</run_depend>
   <run_depend>espeak</run_depend>
-
+  <build_depend>gtm_speech_msgs</build_depend>
+  <run_depend>gtm_speech_msgs</run_depend>
   <export>
   </export>
 </package>

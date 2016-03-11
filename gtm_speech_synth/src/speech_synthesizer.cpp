@@ -3,6 +3,16 @@
 #include <cstdio>
 #include <iostream>
 #include "espeak/speak_lib.h"
+#include <actionlib/server/simple_action_server.h>
+#include "gtm_speech_msgs/SpeakActionFeedback.h"
+#include "gtm_speech_msgs/SpeakActionGoal.h"
+#include "gtm_speech_msgs/SpeakAction.h"
+#include "gtm_speech_msgs/SpeakActionResult.h"
+#include "gtm_speech_msgs/SpeakFeedback.h"
+#include "gtm_speech_msgs/SpeakGoal.h"
+#include "gtm_speech_msgs/SpeakResult.h"
+#include "boost/bind.hpp"
+#include <stdexcept>
 
 // test using: rostopic pub -1 /text_to_speech std_msgs/String "Witaj świecie"
 
@@ -10,7 +20,6 @@
 // example libespeak library usage:
 // http://bazaar.launchpad.net/~rainct/python-espeak/trunk/view/head:/espeak/espeakmodulecore.cpp
 // espeak can also take tags in text: http://espeak.sourceforge.net/ssml.html
-
 
 class EspeakSynth
 {
@@ -23,7 +32,7 @@ public:
   }
   ~EspeakSynth()
   {
-    logIfError(espeak_Terminate());
+    handleError(espeak_Terminate());
   }
 
   /**
@@ -42,12 +51,12 @@ public:
     int len = strlen(msg);
 
     unsigned int flags = espeakCHARS_AUTO | play_flags;
-    logIfError(espeak_Synth(msg, len + 1, 0, POS_CHARACTER, 0, flags, play_id, user_data));
+    handleError(espeak_Synth(msg, len + 1, 0, POS_CHARACTER, 0, flags, play_id, user_data));
   }
   
   void stopPlaying()
   {
-    logIfError(espeak_Cancel());
+    handleError(espeak_Cancel());
   }
   
   bool isPlaying()
@@ -57,7 +66,7 @@ public:
   
   void setVoice(const char* voice)
   {
-    logIfError(espeak_SetVoiceByName(voice));
+    handleError(espeak_SetVoiceByName(voice));
   }
   
   /**
@@ -66,7 +75,7 @@ public:
   
   void setVolume(int value)
   {
-    logIfError(espeak_SetParameter(espeakVOLUME, value, 0));
+    handleError(espeak_SetParameter(espeakVOLUME, value, 0));
   }
   
   int getVolume()
@@ -79,7 +88,7 @@ public:
    */
   void setPitch(int value)
   {
-    logIfError(espeak_SetParameter(espeakPITCH, value, 0));
+    handleError(espeak_SetParameter(espeakPITCH, value, 0));
   }
   
   int getPitch()
@@ -92,7 +101,7 @@ public:
    */
   void setRate(int value)
   {
-    logIfError(espeak_SetParameter(espeakRATE, value, 0));
+    handleError(espeak_SetParameter(espeakRATE, value, 0));
   }
   
   int getRate()
@@ -105,7 +114,7 @@ public:
    */
   void setPitchRange(int value)
   {
-    logIfError(espeak_SetParameter(espeakRANGE, value, 0));
+    handleError(espeak_SetParameter(espeakRANGE, value, 0));
   }
   
   int getPitchRange()
@@ -118,7 +127,7 @@ public:
    */
   void setPunctuation(espeak_PUNCT_TYPE value)
   {
-    logIfError(espeak_SetParameter(espeakPUNCTUATION, value, 0));
+    handleError(espeak_SetParameter(espeakPUNCTUATION, value, 0));
   }
   
   int getPunctuation()
@@ -131,7 +140,7 @@ public:
    */
   void setWordGap(int value)
   {
-    logIfError(espeak_SetParameter(espeakWORDGAP, value, 0));
+    handleError(espeak_SetParameter(espeakWORDGAP, value, 0));
   }
   
   int getWordGap()
@@ -143,11 +152,20 @@ private:
   // disable copying
   EspeakSynth(const EspeakSynth &);
 
-  void logIfError(int errorCode)
+  void handleError(int errorCode)
   {
-    if (errorCode)
+    switch (errorCode)
     {
-      ROS_ERROR("Espeak error, error code: %i", errorCode);
+      case EE_OK:
+        return;
+      case EE_INTERNAL_ERROR:
+        throw std::runtime_error("Espeak internal error.");
+      case EE_BUFFER_FULL:
+        throw std::runtime_error("Espeak buffer full error.");
+      case EE_NOT_FOUND:
+        throw std::runtime_error("Espeak not found error.");
+      default:
+        throw std::runtime_error("Unknown error.");
     }
   }
 };
@@ -168,13 +186,63 @@ int EspeakEventHandler(short *wav, int numsamples, espeak_EVENT *events);
 
 class Synthesizer
 {
+  typedef actionlib::SimpleActionServer<gtm_speech_msgs::SpeakAction> ActionServer;
+  typedef ActionServer::GoalConstPtr GoalConstPtr;
+  
   ros::NodeHandle n;
+  ActionServer action_server;
   ros::Subscriber sub;
   EspeakSynth synth;
+  
+  
+
 
 public:
-  Synthesizer() : n(), sub(n.subscribe("text_to_speech", 300, &Synthesizer::textReceived, this)), synth(EspeakEventHandler)
+  Synthesizer() : n(), action_server(n, "speak", false),
+    sub(n.subscribe("text_to_speech", 300, &Synthesizer::textReceived, this)), synth(EspeakEventHandler)
   {
+    action_server.registerGoalCallback(boost::bind(&Synthesizer::goalCB, this));
+    action_server.registerPreemptCallback(boost::bind(&Synthesizer::preemptCB, this));
+    action_server.start();
+  }
+  
+  ~Synthesizer()
+  {
+    action_server.shutdown();
+  }
+  
+  void goalCB()
+  {
+    boost::shared_ptr<const gtm_speech_msgs::SpeakGoal> goal = action_server.acceptNewGoal();
+    while(synth.isPlaying()) {
+    }
+    ROS_INFO("Received speak text: [%s]", goal->text.c_str());
+    try
+    {
+      synth.asyncPlay(goal->text.c_str(), 0, 0, this);
+    }
+    catch(const std::runtime_error& ex)
+    {
+      ROS_ERROR("Failed speaking text %s", goal->text.c_str());
+      gtm_speech_msgs::SpeakResult result;
+      result.finished = false;
+      action_server.setAborted(result);
+    }
+  }
+  
+  void preemptCB()
+  {
+    ROS_INFO("Speaking preempted");
+    if (synth.isPlaying())
+    {
+      synth.stopPlaying();
+      while (synth.isPlaying())
+      {
+      }
+    }
+    gtm_speech_msgs::SpeakResult result;
+    result.finished = false;
+    action_server.setPreempted(result);
   }
 
   void textReceived(const std_msgs::String::ConstPtr &msg)
@@ -190,26 +258,37 @@ public:
   //
   bool espeakPlayingWord(unsigned int play_id, int text_position, int length, int audio_position, int word_number)
   {
-
     ROS_INFO("Espeak playing a word");
+    gtm_speech_msgs::SpeakFeedback feedback;
+    feedback.processed_characters = text_position;
+    action_server.publishFeedback(feedback);
     return false;
   }
   
   bool espeakPlayingSentence(unsigned int play_id, int text_position, int audio_position, int sentence_number)
   {
     ROS_INFO("Espeak playing a sentence");
+    gtm_speech_msgs::SpeakFeedback feedback;
+    feedback.processed_characters = text_position;
+    action_server.publishFeedback(feedback);
     return false;
   }
 
   bool espeakPlayingSentenceEnd(unsigned int play_id, int text_position, int audio_position)
   {
     ROS_INFO("Espeak playing a sentence ending");
+    gtm_speech_msgs::SpeakFeedback feedback;
+    feedback.processed_characters = text_position;
+    action_server.publishFeedback(feedback);
     return false;
   }
   
   bool espeakPlayingEnd(unsigned int play_id, int text_position, int audio_position)
   {
-    ROS_INFO("Espeak playing ended");
+    ROS_INFO("Espeak playing request ended");
+    gtm_speech_msgs::SpeakResult result;
+    result.finished = false;
+    action_server.setSucceeded(result);
     return false;
   }
 
