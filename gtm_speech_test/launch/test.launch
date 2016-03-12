@@ -1,0 +1,4 @@
+ <launch>
+   <node pkg="gtm_speech_synth" type="speech_synthesizer" name="speech_synthesizer"/>
+   <node pkg="gtm_speech_test" type="speech_test.py" name="speech_test"/>
+ </launch>

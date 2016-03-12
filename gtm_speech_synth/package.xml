@@ -3,8 +3,8 @@
   <name>gtm_speech_synth</name>
   <version>0.0.1</version>
   <description>The gtm_speech_synth package</description>
-
   <maintainer email="qaston@gmail.com">Dariusz Antoniuk</maintainer>
+  <author email="qaston@gmail.com">Dariusz Antoniuk</author>
   <license>GPLv3</license>
 
   <buildtool_depend>catkin</buildtool_depend>

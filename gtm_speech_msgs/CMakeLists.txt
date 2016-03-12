@@ -7,9 +7,15 @@ project(gtm_speech_msgs)
 find_package(catkin REQUIRED COMPONENTS
   actionlib_msgs
   message_generation
+  dynamic_reconfigure
 )
 
 find_package(Boost REQUIRED COMPONENTS system)
+
+# Generate dynamic reconfigure parameters in the 'cfg' folder
+generate_dynamic_reconfigure_options(
+  cfg/Speech.cfg
+)
 
 ################################################
 ## Declare ROS messages, services and actions ##
@@ -93,6 +99,6 @@ generate_messages(
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES gtm_speech_msgs
-CATKIN_DEPENDS actionlib_msgs message_generation
+CATKIN_DEPENDS actionlib_msgs message_generation dynamic_reconfigure
 #  DEPENDS system_lib
 )

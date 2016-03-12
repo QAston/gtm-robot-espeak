@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package>
+  <name>gtm_speech_test</name>
+  <version>0.0.0</version>
+  <description>The gtm_speech_test package</description>
+
+  <maintainer email="qaston@gmail.com">Dariusz Antoniuk</maintainer>
+  <author email="qaston@gmail.com">Dariusz Antoniuk</author>
+  <license>GPLv3</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>actionlib</build_depend>
+  <build_depend>gtm_speech_msgs</build_depend>
+  <build_depend>rospy</build_depend>
+  <run_depend>actionlib</run_depend>
+  <run_depend>gtm_speech_msgs</run_depend>
+  <run_depend>rospy</run_depend>
+
+  <export>
+
+  </export>
+</package>

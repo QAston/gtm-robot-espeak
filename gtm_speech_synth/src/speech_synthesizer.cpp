@@ -13,8 +13,13 @@
 #include "gtm_speech_msgs/SpeakResult.h"
 #include "boost/bind.hpp"
 #include <stdexcept>
+#include "gtm_speech_msgs/SpeechConfig.h"
+#include "dynamic_reconfigure/server.h"
 
-// test using: rostopic pub -1 /text_to_speech std_msgs/String "Witaj świecie"
+/**
+ *actions served: speak - speak one-msg-at-a-time
+ *has dynamic_reconfiguration for volume and stuff
+ */
 
 
 // example libespeak library usage:
@@ -188,19 +193,19 @@ class Synthesizer
 {
   typedef actionlib::SimpleActionServer<gtm_speech_msgs::SpeakAction> ActionServer;
   typedef ActionServer::GoalConstPtr GoalConstPtr;
+  typedef dynamic_reconfigure::Server<gtm_speech_msgs::SpeechConfig> ReconfigureServer;
   
   ros::NodeHandle n;
-  ActionServer action_server;
-  ros::Subscriber sub;
   EspeakSynth synth;
-  
-  
-
+  ActionServer action_server;
+  ReconfigureServer reconfigure_server;
+  ros::Subscriber sub;
 
 public:
-  Synthesizer() : n(), action_server(n, "speak", false),
-    sub(n.subscribe("text_to_speech", 300, &Synthesizer::textReceived, this)), synth(EspeakEventHandler)
+  Synthesizer() : n(), synth(EspeakEventHandler), action_server(n, "speak", false),
+    reconfigure_server()
   {
+    reconfigure_server.setCallback(boost::bind(&Synthesizer::reconfigureCB, this, _1, _2));
     action_server.registerGoalCallback(boost::bind(&Synthesizer::goalCB, this));
     action_server.registerPreemptCallback(boost::bind(&Synthesizer::preemptCB, this));
     action_server.start();
@@ -211,10 +216,22 @@ public:
     action_server.shutdown();
   }
   
+  void reconfigureCB(gtm_speech_msgs::SpeechConfig &config, uint32_t level)
+  {
+    synth.setPitch(config.pitch);
+    synth.setPunctuation(config.announce_punctuation ? espeakPUNCT_ALL : espeakPUNCT_NONE);
+    synth.setPitchRange(config.pitch_range);
+    synth.setRate(config.rate);
+    synth.setVolume(config.volume);
+    synth.setWordGap(config.wordgap);
+  }
+  
   void goalCB()
   {
     boost::shared_ptr<const gtm_speech_msgs::SpeakGoal> goal = action_server.acceptNewGoal();
-    while(synth.isPlaying()) {
+    if (synth.isPlaying()) {
+      ROS_INFO("wait to stop goal");
+      while (synth.isPlaying());
     }
     ROS_INFO("Received speak text: [%s]", goal->text.c_str());
     try
@@ -235,60 +252,53 @@ public:
     ROS_INFO("Speaking preempted");
     if (synth.isPlaying())
     {
+      ROS_INFO("Stopping speech");
       synth.stopPlaying();
-      while (synth.isPlaying())
-      {
-      }
     }
     gtm_speech_msgs::SpeakResult result;
     result.finished = false;
     action_server.setPreempted(result);
   }
-
-  void textReceived(const std_msgs::String::ConstPtr &msg)
+  
+  void publishFeedback(int text_position)
   {
-    // don't change settings and stuff while playing because espeak doesn't work properly then
-    // either wait or cancel
-    while(synth.isPlaying()) {
+    if (!action_server.isPreemptRequested()) {
+      gtm_speech_msgs::SpeakFeedback feedback;
+      feedback.processed_characters = text_position;
+      action_server.publishFeedback(feedback);
     }
-    ROS_INFO("Received text_to_speech: [%s]", msg->data.c_str());
-    synth.asyncPlay(msg->data.c_str(), 0, 0, this);
   }
   
   //
   bool espeakPlayingWord(unsigned int play_id, int text_position, int length, int audio_position, int word_number)
   {
     ROS_INFO("Espeak playing a word");
-    gtm_speech_msgs::SpeakFeedback feedback;
-    feedback.processed_characters = text_position;
-    action_server.publishFeedback(feedback);
+    publishFeedback(text_position);
     return false;
   }
   
   bool espeakPlayingSentence(unsigned int play_id, int text_position, int audio_position, int sentence_number)
   {
     ROS_INFO("Espeak playing a sentence");
-    gtm_speech_msgs::SpeakFeedback feedback;
-    feedback.processed_characters = text_position;
-    action_server.publishFeedback(feedback);
+    publishFeedback(text_position);
     return false;
   }
 
   bool espeakPlayingSentenceEnd(unsigned int play_id, int text_position, int audio_position)
   {
     ROS_INFO("Espeak playing a sentence ending");
-    gtm_speech_msgs::SpeakFeedback feedback;
-    feedback.processed_characters = text_position;
-    action_server.publishFeedback(feedback);
+    publishFeedback(text_position);
     return false;
   }
   
   bool espeakPlayingEnd(unsigned int play_id, int text_position, int audio_position)
   {
     ROS_INFO("Espeak playing request ended");
-    gtm_speech_msgs::SpeakResult result;
-    result.finished = false;
-    action_server.setSucceeded(result);
+    if (!action_server.isPreemptRequested()) {
+      gtm_speech_msgs::SpeakResult result;
+      result.finished = true;
+      action_server.setSucceeded(result);
+    }
     return false;
   }
 
